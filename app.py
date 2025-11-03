@@ -4,7 +4,7 @@ import google.generativeai as genai
 from gtts import gTTS
 import io
 import tempfile
-import base64  # JS 오디오 데이터 처리용
+import base64
 
 # 언어 매핑 (5개 언어)
 LANGUAGES = {'한국어': 'ko', '베트남어': 'vi', '영어': 'en', '중국어': 'zh', '일본어': 'ja'}
@@ -63,7 +63,7 @@ st.write("🎤 마이크 버튼으로 말하세요 (5초 자동 녹음 후 처�
 if 'recorded_audio' not in st.session_state:
     st.session_state.recorded_audio = None
 
-# JS로 마이크 녹음 (Web Audio API – 클라우드 호환)
+# JS로 마이크 녹음 (Web Audio API – 클라우드 호환, 에러 고침)
 mic_js = """
 <div id="mic-div">
     <button id="mic-btn" onclick="toggleMic()">🎤 말하기 시작</button>
@@ -92,7 +92,6 @@ async function toggleMic() {
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
                 reader.onloadend = () => {
-                    // Streamlit 세션에 데이터 저장
                     parent.window.streamlitSetComponentValue({audio: reader.result});
                 };
                 stream.getTracks().forEach(track => track.stop());
@@ -100,9 +99,9 @@ async function toggleMic() {
             mediaRecorder.start();
             setTimeout(() => {
                 if (isRecording) mediaRecorder.stop();
-            }, 5000);  # 5초 자동 중지
+            }, 5000);  // 5초 자동 중지
         } catch (err) {
-            status.textContent = '마이크 오류: ' + err.message;
+            status.textContent = '마이크 오류: ' + err.message + ' (브라우저 권한 확인)';
         }
     } else {
         mediaRecorder.stop();
@@ -159,7 +158,7 @@ if recorded_audio and 'audio' in recorded_audio:
     
     st.session_state.recorded_audio = None
 
-# 파일 업로드 대안 (임시 – 들여쓰기 완벽 고침)
+# 파일 업로드 대안 (임시 – 들여쓰기 완벽)
 uploaded_file = st.file_uploader("파일 업로드 (대안)", type=['wav', 'mp3', 'm4a'])
 if uploaded_file is not None:
     st.write("파일 업로드됐어요! 처리 중...")
