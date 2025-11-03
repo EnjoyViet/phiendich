@@ -1,0 +1,5 @@
+streamlit
+openai-whisper
+google-generativeai
+gtts
+pyaudio
