@@ -65,7 +65,7 @@ if 'recorded_audio' not in st.session_state:
 
 # JS로 마이크 녹음 (Web Audio API – 클라우드 호환)
 mic_js = """
-< div id="mic-div">
+<div id="mic-div">
     <button id="mic-btn" onclick="toggleMic()">🎤 말하기 시작</button>
     <p id="status">준비 중... (마이크 허용 후 클릭)</p>
 </div>
@@ -92,7 +92,7 @@ async function toggleMic() {
                 const reader = new FileReader();
                 reader.readAsDataURL(audioBlob);
                 reader.onloadend = () => {
-                    // Streamlit 세션에 데이터 저장 (runeScript로)
+                    // Streamlit 세션에 데이터 저장
                     parent.window.streamlitSetComponentValue({audio: reader.result});
                 };
                 stream.getTracks().forEach(track => track.stop());
@@ -100,7 +100,7 @@ async function toggleMic() {
             mediaRecorder.start();
             setTimeout(() => {
                 if (isRecording) mediaRecorder.stop();
-            }, 5000);  // 5초 자동 중지
+            }, 5000);  # 5초 자동 중지
         } catch (err) {
             status.textContent = '마이크 오류: ' + err.message;
         }
@@ -115,7 +115,7 @@ async function toggleMic() {
 """
 
 # Streamlit 컴포넌트로 JS 임베드
-components.html(mic_js, height=100)
+st.components.v1.html(mic_js, height=100)
 
 # 녹음 데이터 처리 (JS에서 전송된 오디오)
 recorded_audio = st.session_state.get('recorded_audio')
@@ -159,9 +159,42 @@ if recorded_audio and 'audio' in recorded_audio:
     
     st.session_state.recorded_audio = None
 
-# 파일 업로드 대안 (임시)
+# 파일 업로드 대안 (임시 – 들여쓰기 완벽 고침)
 uploaded_file = st.file_uploader("파일 업로드 (대안)", type=['wav', 'mp3', 'm4a'])
 if uploaded_file is not None:
-    # (이전 처리 코드 생략 – 위 STT/TTS 부분과 동일)
+    st.write("파일 업로드됐어요! 처리 중...")
+    
+    # 임시 파일 저장
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        tmp_path = tmp_file.name
+    
+    # STT: 음성 → 텍스트
+    result = whisper_model.transcribe(tmp_path, language=LANGUAGES[input_lang])
+    text = result["text"].strip()
+    st.write(f"인식된 텍스트 ({input_lang}): {text}")
+    
+    if not text:
+        st.warning("음성을 인식하지 못했습니다. 다시 시도하세요.")
+    else:
+        # Gemini AI 번역
+        prompt = f"""
+        다음 텍스트를 {output_lang}로 전문 통역사처럼 자연스럽고 정확하게 번역하세요. 
+        구어체를 유지하며, 문화적 맥락과 뉘앙스를 고려하세요. 간결하게 유지하세요.
+        
+        원문 ({input_lang}): {text}
+        """
+        
+        response = gemini_model.generate_content(prompt)
+        translated_text = response.text.strip()
+        st.write(f"번역 결과 ({output_lang}) - Gemini AI: {translated_text}")
+        
+        # TTS: 텍스트 → 음성 출력
+        tts = gTTS(translated_text, lang=LANGUAGES[output_lang], slow=False)
+        audio_file = io.BytesIO()
+        tts.write_to_fp(audio_file)
+        audio_file.seek(0)
+        st.audio(audio_file, format='audio/mp3')
+        st.info("TTS: gTTS (또렷한 여성-like 목소리). 업로드 파일로 테스트하세요!")
 
 st.write("동시 통역 팁: 마이크 버튼 클릭 후 말하세요. 스마트폰에서 잘 동작해요 – 외부에서도 데이터로 OK!")
