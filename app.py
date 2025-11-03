@@ -1,10 +1,9 @@
 import streamlit as st
 import whisper
 import google.generativeai as genai
-from gtts import gTTS  # TTS 전용 import (gTTS 사용)
+from gtts import gTTS
 import io
-import pyaudio
-import wave
+import tempfile  # 임시 파일 저장용 (클라우드에서)
 
 # 언어 매핑 (5개 언어)
 LANGUAGES = {'한국어': 'ko', '베트남어': 'vi', '영어': 'en', '중국어': 'zh', '일본어': 'ja'}
@@ -18,7 +17,7 @@ if 'api_key' not in st.session_state:
 
 api_key_input = st.text_input("Google API 키 입력 (https://aistudio.google.com/api-keys에서 발급)", 
                               value=st.session_state.api_key, 
-                              type="password",  # 보안 위해 마스킹
+                              type="password",
                               help="API 키를 입력하세요. 저장되어 재사용됩니다.")
 
 if api_key_input:
@@ -60,38 +59,19 @@ if st.button("언어 전환 (A ↔ B)"):
     st.session_state.output_lang = temp
     st.rerun()
 
-# 시작 버튼
-if st.button("시작 (음성 입력)"):
-    st.write("마이크를 켜고 말하세요. (테스트: 5초 녹음 후 처리)")
+# 오디오 파일 업로드 (클라우드용 – 스마트폰 녹음 앱으로 wav/mp3 업로드)
+uploaded_file = st.file_uploader("음성 파일 업로드 (WAV/MP3, 한국어로 말한 오디오)", type=['wav', 'mp3', 'm4a'])
+
+if uploaded_file is not None:
+    st.write("파일 업로드됐어요! 처리 중...")
     
-    # 마이크 녹음 설정
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = 16000
-    RECORD_SECONDS = 5
-    
-    p = pyaudio.PyAudio()
-    stream = p.open(format=FORMAT, channels=CHANNELS, rate=RATE, input=True, frames_per_buffer=CHUNK)
-    
-    frames = []
-    for _ in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
-        data = stream.read(CHUNK)
-        frames.append(data)
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-    
-    # WAV 파일 임시 저장
-    wf = wave.open("input.wav", 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
+    # 임시 파일 저장 (클라우드에서)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        tmp_path = tmp_file.name
     
     # STT: 음성 → 텍스트
-    result = whisper_model.transcribe("input.wav", language=LANGUAGES[input_lang])
+    result = whisper_model.transcribe(tmp_path, language=LANGUAGES[input_lang])
     text = result["text"].strip()
     st.write(f"인식된 텍스트 ({input_lang}): {text}")
     
@@ -116,6 +96,8 @@ if st.button("시작 (음성 입력)"):
         tts.write_to_fp(audio_file)
         audio_file.seek(0)
         st.audio(audio_file, format='audio/mp3')
-        st.info("TTS: gTTS (또렷한 여성-like 목소리). 더 고급 TTS 원하시면 Google Cloud JSON 키 설정 도와드릴게요.")
+        st.info("TTS: gTTS (또렷한 여성-like 목소리). 업로드 파일로 테스트하세요!")
+
+st.write("테스트: 스마트폰 녹음 앱으로 '안녕하세요' 말한 WAV 파일 업로드해 보세요. (실시간 업그레이드 원하시면 말씀하세요!)")
 
 st.write("종료하려면 페이지를 새로고침하세요. 이제 에러 없이 실행될 거예요!")
